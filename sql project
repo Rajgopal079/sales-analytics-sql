@@ -1,0 +1,740 @@
+ 
+--Write a query to display every sales order along with the corresponding customer name, product name, 
+--and quantity purchased.
+SELECT S.[Order Number], C.NAME, P.[Product Name] AS Product_Name , S.QUANTITY
+FROM Sales AS S
+INNER JOIN  CUST_JOIN  AS C 
+ON S.CustomerKey = C.CustomerKey
+INNER JOIN Products AS P
+ON S.ProductKey = P.ProductKey
+ORDER BY Quantity DESC
+
+--Write a query to display, for every sale, the customer name, customer country, product name, 
+--product category, and quantity sold.
+SELECT C.NAME,  C.COUNTRY,  P.[Product Name],  P.CATEGORY,  S.QUANTITY FROM SALES AS S
+INNER JOIN  CUST_JOIN  AS C 
+ON S.CustomerKey = C.CustomerKey
+INNER JOIN Products AS P
+ON S.ProductKey = P.ProductKey
+ORDER BY Quantity DESC 
+
+--Write a query to calculate the total quantity sold for each combination of store country and product category.
+SELECT C.COUNTRY, P.CATEGORY, SUM(S.Quantity) AS TOTAL_QTY FROM Sales AS S
+INNER JOIN  CUST_JOIN   AS C 
+ON S.CustomerKey = C.CustomerKey
+INNER JOIN Products AS P
+ON S.ProductKey = P.ProductKey
+GROUP BY C.COUNTRY, P.CATEGORY
+
+---Write a query to calculate the total sales revenue (in USD) generated across all orders.
+SELECT SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+) AS  TOTAL_SALES_REVENUE_USD FROM Sales AS S
+INNER JOIN Products AS P  
+ON S.ProductKey = P.ProductKey 
+
+--Write a query to calculate total sales converted into each order's local currency, using the exchange rate matched 
+--by currency code and order date.
+SELECT S.[Order Number], S.[Currency Code], SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')
+AS DECIMAL(10,2 )) * E.Exchange
+) AS  TOTAL_LOCAL_SALES FROM Sales AS S
+INNER JOIN Products AS P  
+ON S.ProductKey = P.ProductKey 
+INNER JOIN Exchange_Rates AS E
+ON S.[Order Date] = E.Date AND 
+S.[Currency Code] = E.Currency
+GROUP BY S.[Order Number],
+ S.[Currency Code]
+
+--Write a query to display, for each order, the total sales in both USD and the local currency side by side.
+SELECT S.[Order Number], SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '') 
+AS DECIMAL(10,2))) AS SALES_USD , SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '') 
+AS DECIMAL(10, 2)) * E.Exchange) AS LOCAL_SALES FROM Sales AS S
+INNER JOIN Products AS P  
+ON S.ProductKey = P.ProductKey 
+INNER JOIN Exchange_Rates AS E
+ON S.[Order Date] = E.Date AND 
+S.[Currency Code] = E.Currency
+GROUP BY S.[Order Number]
+
+--Assume the Sales table stores the order amount in local currency. Write a query to convert this local currency amount 
+--into USD for each order using the applicable exchange rate.
+SELECT S.[Order Number], SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '') AS DECIMAL(10,2)) * E.Exchange) 
+AS USD_AMOUNT FROM Sales AS S
+INNER JOIN Products AS P
+ON S.ProductKey = P.ProductKey 
+INNER JOIN Exchange_Rates AS E
+ON S.[Order Date] = E.Date AND 
+S.[Currency Code] = E.Currency
+GROUP BY S.[Order Number]
+
+--Write a query to identify the top 10 customers ranked by total sales revenue.
+SELECT TOP 10 C.Name, SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+) AS  TOTAL_SALES,
+DENSE_RANK()OVER(ORDER BY SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+) DESC ) AS D_RNK  FROM Sales AS S
+INNER JOIN Cust_join AS C 
+ON C.[CustomerKey] = S.[CustomerKey]
+INNER JOIN Products AS P
+ON P.[ProductKey] = S.[ProductKey]
+GROUP BY C.Name
+
+--Write a query to find the best-selling product (by revenue) within each product category.
+
+WITH Productrevenue AS (
+SELECT P.Category, P.[Product Name], 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+) AS  TOTAL_SALES FROM Products AS P  
+INNER JOIN Sales AS S
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY P.Category, P.[Product Name] 
+)
+SELECT Category, [Product Name], 
+TOTAL_SALES FROM (
+    SELECT *, ROW_NUMBER()OVER(PARTITION BY Category ORDER BY TOTAL_SALES DESC) AS RN
+ FROM Productrevenue 
+) AS X 
+WHERE RN = 1 
+
+--Write a query to calculate the number of days taken to deliver each order, along with the customer name.
+SELECT S.[Order Number], DATEDIFF(DD, CONVERT(DATE, [Order Date], 105) , 
+CONVERT(DATE, [Delivery Date], 105) ) AS NO_OF_DAYS , C.Name FROM Sales AS S
+INNER JOIN Cust_join AS C
+ON S.[CustomerKey] = C.[CustomerKey]
+
+--Write a query to calculate the average order delivery time (in days) for each customer country.
+SELECT C.Country, AVG(DATEDIFF(DD, CONVERT(DATE, [Order Date], 105) , 
+CONVERT(DATE, [Delivery Date], 105) )) AS AVGDAYS FROM Sales AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+GROUP BY C.Country
+
+--Write a query to identify the top 5 product brands ranked by total revenue.
+SELECT TOP 5 P.Brand, SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+ ) AS REVENUE  
+  FROM Products  AS P
+ INNER JOIN Sales AS S
+ ON P.[ProductKey] = S.[ProductKey]
+GROUP BY P.Brand 
+ORDER BY REVENUE DESC
+
+--Write a query to identify the single store that has generated the highest total revenue.
+SELECT  TOP 1 S.StoreKey, SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+ ) AS REVENUE FROM Sales AS S
+ INNER JOIN Products AS P
+ ON S.[ProductKey] = P.[ProductKey]
+ GROUP BY S.StoreKey
+ ORDER BY REVENUE DESC 
+
+ WITH STOREREVENUE AS (
+    SELECT  TOP 1 S.StoreKey, SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+ ) AS REVENUE FROM Sales AS S
+ INNER JOIN Products AS P
+ ON S.[ProductKey] = P.[ProductKey]
+ GROUP BY S.StoreKey
+ ORDER BY REVENUE DESC 
+ ) 
+
+ SELECT StoreKey, REVENUE 
+ FROM (
+    SELECT *, DENSE_RANK()OVER(ORDER BY REVENUE) AS STORE_RNK
+    FROM STOREREVENUE
+ ) AS X 
+ WHERE STORE_RNK = 1
+
+--Write a query to calculate the total profit generated by each product category.
+SELECT P.Category, SUM(S.Quantity * (CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+ -(CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))) )) AS PROFIT 
+FROM Products AS P
+INNER JOIN Sales AS S  
+ON P.[ProductKey] = S.[ProductKey]
+GROUP BY P.Category 
+ORDER BY PROFIT DESC
+
+--Write a query to calculate the total profit generated by customers in each country.
+SELECT C.Country, SUM(S.Quantity * (CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+ -(CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))) )) AS PROFIT 
+ FROM Sales AS S
+ INNER JOIN Cust_join AS C
+ ON S.[CustomerKey] = C.[CustomerKey]
+ INNER JOIN Products AS P
+ ON S.[ProductKey] = P.[ProductKey]
+ GROUP BY C.Country
+ ORDER BY PROFIT DESC
+
+--Write a query to identify the top 3 best-selling products (by revenue) within each product category, using a ranking 
+--window function such as ROW_NUMBER(), RANK(), or DENSE_RANK().
+WITH Productrevenue AS (
+SELECT P.Category, P.[Product Name], 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+) AS  TOTAL_SALES FROM Products AS P  
+INNER JOIN Sales AS S
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY P.Category, P.[Product Name] 
+)
+SELECT  Category, [Product Name], 
+TOTAL_SALES FROM (
+    SELECT *, ROW_NUMBER()OVER(PARTITION BY Category ORDER BY TOTAL_SALES DESC) AS RN
+ FROM Productrevenue 
+) AS X 
+WHERE  RN <= 3
+ORDER BY Category , RN
+
+--Write a query to calculate each customer's age at the time they placed each order.
+SELECT C.Name, DATEDIFF(YYYY, CONVERT(DATE, C.Birthday, 105), CONVERT(DATE, S.[Order Date], 105) ) AS AGE 
+FROM Cust_join AS C
+INNER JOIN Sales AS S
+ON C.[CustomerKey] = S.[CustomerKey]
+
+--Write a query to identify customers who have made purchases from more than one store.
+SELECT C.Name, COUNT(DISTINCT S.StoreKey) AS STOREVISIT 
+FROM Sales AS S
+INNER JOIN Cust_join AS C
+ON C.[CustomerKey] = S.[CustomerKey]
+GROUP BY C.Name
+HAVING COUNT(DISTINCT S.StoreKey) > 1
+
+--Write a query to calculate total revenue generated by each store, grouped by store country and state.
+SELECT C.Country , C.State , SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+) AS REVENUE FROM Cust_join AS C 
+INNER JOIN Sales AS S
+ON  C.[CustomerKey] = S.[CustomerKey]
+INNER JOIN Products AS P
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY C.Country ,  C.State
+ORDER BY REVENUE DESC
+
+--Write a query to calculate total revenue generated on each continent.
+SELECT C.Continent , SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2 ))
+) AS REVENUE FROM Cust_join AS C 
+INNER JOIN Sales AS S
+ON  C.[CustomerKey] = S.[CustomerKey]
+INNER JOIN Products AS P
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY C.Continent
+
+--Write a query to identify repeat customers, i.e., customers who have placed more than one order.
+SELECT C.Name, COUNT(S.[Order Date]) AS NO_OF_ORDERS 
+FROM Sales AS S 
+INNER JOIN Cust_join AS C
+ON C.[CustomerKey] = S.[CustomerKey]
+GROUP BY C.Name
+HAVING COUNT(S.[Order Date]) > 1
+ORDER BY NO_OF_ORDERS  DESC
+
+--Write a query to identify customers who have purchased products from more than one product category.
+SELECT C.Name, COUNT( DISTINCT P.Category ) AS CategoriesPurchased 
+FROM Cust_join AS C
+INNER JOIN Sales AS S
+ON C.[CustomerKey] = S.[CustomerKey]
+INNER JOIN Products AS P
+ON S.[ProductKey] = P.[ProductKey] 
+GROUP BY C.Name 
+HAVING COUNT( DISTINCT P.Category ) > 1
+ORDER BY CategoriesPurchased DESC
+
+--Write a query to calculate total monthly sales revenue for each country
+SELECT YEAR(CONVERT(DATE, S.[Order Date], 105)) AS SALESYEAR,
+ MONTH(CONVERT(DATE, S.[Order Date], 105)) AS SALESMONTH,
+C.Country, 
+ SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS SALESUSD
+FROM Sales AS S 
+INNER JOIN Cust_join AS C 
+ON C.[CustomerKey] = S.[CustomerKey]
+INNER JOIN Products AS P
+ON S.[ProductKey] = P.[ProductKey] 
+GROUP BY YEAR(CONVERT(DATE, S.[Order Date], 105)) ,
+ MONTH(CONVERT(DATE, S.[Order Date], 105)) ,
+C.Country
+ORDER BY SALESYEAR,
+SALESMONTH,C.Country
+
+--Write a query to identify the top-selling product (by quantity) in each country.
+SELECT C.Country, P.[Product Name], COUNT(S.Quantity) AS TOTAL_QTY
+FROM Sales AS S
+INNER JOIN Cust_join AS C
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P
+ON P.[ProductKey] = S.[ProductKey]
+GROUP BY C.Country, P.[Product Name]
+ORDER BY TOTAL_QTY DESC 
+
+--Write a query to calculate revenue, cost, profit, profit percentage, and revenue in local currency for each country.
+WITH SALES_DATA AS (
+
+SELECT C.Country,
+
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '') AS DECIMAL(10,2))) AS REVENUE,
+
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',' , '') AS DECIMAL(10,2))) AS COST, 
+
+SUM(S.Quantity * 
+CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',' , '')AS DECIMAL(10,2))
+- (CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',','')AS DECIMAL(10,2)))) AS PROFIT, 
+ 
+SUM(S.Quantity * (CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '')AS DECIMAL(10,2))) * E.Exchange) AS LOC_REVENUE
+FROM Sales AS S
+INNER JOIN Cust_join AS C
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P
+ON P.[ProductKey] = S.[ProductKey]
+INNER JOIN Exchange_Rates AS E
+ON S.[Order Date] = E.Date AND 
+S.[Currency Code] = E.Currency
+GROUP BY C.Country
+)
+SELECT Country , REVENUE, COST, PROFIT, 
+CAST(PROFIT/ NULLIF(REVENUE,0)*100 AS DECIMAL(10,2)) AS PROFIT_PREC, 
+LOC_REVENUE
+FROM SALES_DATA 
+
+ORDER BY REVENUE DESC
+
+--The marketing team wants to identify high-value customers for a loyalty program. 
+--Write a query to display each customer's name, country, total number of orders, 
+--total quantity purchased, and total sales in USD, sorted by highest sales.
+
+SELECT C.Name, C.Country, 
+COUNT( DISTINCT S.[Order Date])AS NO_OF_ORDERS,
+SUM(S.Quantity) AS TOTAL_QUANTITY,
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS TOTAL_SALE_USD
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY C.Name, C.Country
+ORDER BY TOTAL_SALE_USD DESC
+
+--The procurement department wants to identify products with the highest profit contribution. 
+--Write a query to display product name, brand, revenue, cost, and profit, sorted by profit in descending order.
+SELECT P.[Product Name], P.Brand, 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE,
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS COST,
+(SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2)))  -
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',', '') AS DECIMAL(10,2))) ) AS PROFIT 
+FROM Sales  AS S 
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY P.[Product Name], P.Brand 
+ORDER BY PROFIT DESC 
+
+WITH procurement AS (
+   SELECT P.[Product Name], P.Brand, 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE,
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS COST
+FROM Sales  AS S 
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY P.[Product Name], P.Brand 
+)
+SELECT [Product Name], Brand, REVENUE, COST, 
+CAST(REVENUE - COST AS DECIMAL(10,2)) AS PROFIT 
+FROM procurement 
+ORDER BY PROFIT DESC  
+
+--Management wants to know which stores are generating the highest sales. Write a query to display 
+--total revenue for every store along with store country, state, and store size (square meters).
+SELECT C.Country, C.State, R.[Square Meters],
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+INNER JOIN Stores AS R 
+ON S.[StoreKey] = R.[StoreKey]
+GROUP BY C.Country, C.State, R.[Square Meters]
+ORDER BY REVENUE DESC 
+
+--The CEO wants to identify the best-selling product category in each country. 
+--Write a query to display the top-selling category (by revenue) for every customer country.
+SELECT C.Country, P.Category, 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY C.Country, P.Category
+ORDER BY REVENUE DESC 
+
+--Finance wants to calculate revenue in each customer's local currency. Write a query to display order number, 
+--customer name, currency code, revenue in USD, and revenue in local currency.
+SELECT S.[Order Number], C.Name, S.[Currency Code], 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE,
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2)) * E.Exchange) AS LOCAL_REVENUE
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+INNER JOIN Exchange_Rates AS E 
+ON E.[Currency] = S.[Currency Code] AND E.[Date] =  S.[Order Date]
+GROUP BY S.[Order Number], C.Name, S.[Currency Code]
+ORDER BY REVENUE DESC , LOCAL_REVENUE DESC 
+
+--Write a query to find customers who have purchased products from at least three different brands.
+SELECT C.Name, COUNT(DISTINCT P.Brand) AS purchased_Brand
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY C.Name 
+HAVING COUNT(DISTINCT P.Brand) >= 3
+ORDER BY purchased_Brand DESC
+
+--Write a query to calculate the average order value for each country.
+WITH AOV AS (
+SELECT C.Country , 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS ORDER_VALUE 
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY C.Country 
+)
+SELECT Country , AVG(ORDER_VALUE ) AS AVG_ORDER_VALUE 
+FROM AOV 
+GROUP BY Country
+ORDER BY AVG_ORDER_VALUE  DESC
+
+--Write a query to find the oldest customer (by birthday) who has placed at least one order.
+SELECT TOP 1 C.Name, C.Country, C.Birthday 
+FROM Cust_join AS C 
+WHERE EXISTS (
+SELECT 1
+FROM Sales AS S 
+WHERE S.CustomerKey = C.CustomerKey
+
+)
+ORDER BY CONVERT(DATE, C.Birthday, 105) 
+
+WITH BRITHDAY AS (
+   SELECT MIN(CONVERT(DATE, C.Birthday, 105)) AS OLD_BDAY
+   FROM Cust_Join AS C
+   INNER JOIN Sales AS S
+ON C.CustomerKey = S.CustomerKey
+)
+SELECT DISTINCT 
+C.Name, C.Country, C.Birthday
+FROM Cust_Join AS C
+   INNER JOIN Sales AS S
+ON C.CustomerKey = S.CustomerKey
+CROSS JOIN BRITHDAY AS B 
+WHERE CONVERT(DATE, C.Birthday, 105) = B.OLD_BDAY 
+
+--Write a query to display yearly revenue for each product category.
+SELECT YEAR(CONVERT(DATE, S.[Order Date], 105)) AS SALESYEAR , P.Category, 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE 
+FROM Sales  AS S 
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY YEAR(CONVERT(DATE, S.[Order Date], 105)), P.Category 
+ORDER BY  SALESYEAR ,REVENUE DESC
+
+--Write a query to identify products that have never been sold.
+SELECT P.[ProductKey], P.[Product Name]
+FROM Products AS P 
+LEFT JOIN Sales AS S 
+ON P.[ProductKey] = S.[ProductKey]
+WHERE S.[ProductKey] IS NULL
+
+--Write a query to identify stores that have never processed an order.
+SELECT R.[StoreKey] , R.Country, R.State
+FROM Stores AS R 
+LEFT JOIN Sales AS S
+ON R.[StoreKey] = S.[StoreKey]
+WHERE S.[StoreKey] IS NULL
+
+--Write a query to display monthly revenue for each product brand.
+SELECT 
+YEAR(CONVERT(DATE, S.[Order Date], 105 )) AS YEARSALE,
+MONTH(CONVERT(DATE, S.[Order Date], 105 )) AS MONTHSALE,
+P.Brand,
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE 
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY P.Brand, YEAR(CONVERT(DATE, S.[Order Date], 105 )) ,MONTH(CONVERT(DATE, S.[Order Date], 105 ))
+ORDER BY YEARSALE, MONTHSALE, REVENUE DESC
+
+--Write a query to identify customers whose total spending exceeds the overall average customer spending.
+WITH AVGSPEEDING AS (
+SELECT C.Name, 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS TOTAL_SPEEDING  
+
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY C.[CustomerKey], C.Name
+)
+SELECT Name, TOTAL_SPEEDING 
+FROM AVGSPEEDING 
+WHERE  TOTAL_SPEEDING  > (
+ SELECT AVG(TOTAL_SPEEDING)
+ FROM AVGSPEEDING
+)
+ORDER BY TOTAL_SPEEDING DESC
+
+--Write a query to rank all stores based on their total revenue.
+SELECT S.[StoreKey], C.Country, 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE,
+DENSE_RANK()OVER(ORDER BY SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) DESC
+) AS STORE_RANK
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY S.[StoreKey], C.Country
+ORDER BY STORE_RANK, REVENUE DESC
+
+--Write a query to calculate each customer's percentage contribution to total company revenue.
+WITH CUSTOMERPERCENTAGE AS (
+SELECT C.Name,
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY C.Name
+)
+SELECT Name, REVENUE,
+CAST(REVENUE/NULLIF(SUM(REVENUE)OVER(), 0 )* 100 AS DECIMAL(10,2)) AS contribution_Per
+FROM CUSTOMERPERCENTAGE
+ORDER BY REVENUE DESC 
+
+--The Operations Manager wants to identify which stores consistently deliver orders the fastest. 
+--Write a query to display store key, country, state, total orders, and average delivery days, 
+--sorted by the fastest delivery time.
+SELECT S.[StoreKey], C.Country, C.State, 
+COUNT(S.[Order Date]) AS TOTAL_ORDER,
+AVG(DATEDIFF(DD, CONVERT(DATE, [Order Date], 105) , 
+CONVERT(DATE, [Delivery Date], 105) )) AS AVGDAYS
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+GROUP BY  S.[StoreKey], C.Country, C.State
+ORDER BY TOTAL_ORDER DESC 
+
+--Management wants to investigate stores with poor delivery performance. Write a query to display 
+--the top 5 stores with the highest average delivery days.
+SELECT  TOP 5 S.[StoreKey], C.Country, C.State, 
+COUNT(S.[Order Date]) AS TOTAL_ORDER,
+AVG(DATEDIFF(DD, CONVERT(DATE, [Order Date], 105) , 
+CONVERT(DATE, [Delivery Date], 105) )) AS AVGDAYS
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+GROUP BY  S.[StoreKey], C.Country, C.State
+ORDER BY AVGDAYS DESC 
+
+--Finance wants to know which product categories generate the highest profit margin. Write a query to display 
+--category, revenue, cost, profit, and profit percentage, sorted by profit percentage in descending order.
+SELECT P.Category, 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE,
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS COST,
+(SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) -
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',', '') AS DECIMAL(10,2)))) AS PROFIT 
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY P.Category
+ORDER BY PROFIT  DESC
+
+WITH CUST AS (
+SELECT P.Category, 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE,
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS COST
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY P.Category
+)
+SELECT Category, REVENUE , COST,
+CAST(REVENUE - COST AS DECIMAL(10,2)) AS PROFIT,
+CAST((REVENUE - COST)/ NULLIF(REVENUE, 0 )* 100 AS DECIMAL(10,2)) AS PROFIT_PERC
+FROM CUST 
+ORDER BY PROFIT DESC
+
+--Marketing wants to know which brands dominate each country. Write a query to display 
+--the top 5 brands (by revenue) within each country, along with their rank.
+WITH TOPBRAND AS (
+SELECT  C.Country, P.Brand, 
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2))) AS REVENUE,
+DENSE_RANK()OVER(PARTITION BY C.Country 
+ORDER BY SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '') AS DECIMAL(10,2)))  ) AS RANK 
+FROM Sales  AS S 
+INNER JOIN Cust_join AS C 
+ON S.[CustomerKey] = C.[CustomerKey]
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY C.Country, P.Brand
+)
+SELECT Country, Brand, REVENUE, RANK 
+FROM TOPBRAND 
+WHERE RANK <= 5 
+ORDER BY  Country, RANK 
+
+--The CFO wants to track cumulative revenue throughout the year. Write a query to display year, month, 
+--monthly revenue, and running (cumulative) revenue.
+WITH CFO AS (
+SELECT YEAR(CONVERT(DATE, S.[Order Date], 105)) AS SALESYEAR,
+MONTH(CONVERT(DATE, S.[Order Date], 105)) AS SALESMONTH,
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '')AS DECIMAL(10,2))) AS REVENUE
+FROM Sales  AS S 
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY YEAR(CONVERT(DATE, S.[Order Date], 105)) ,
+MONTH(CONVERT(DATE, S.[Order Date], 105)) 
+)
+SELECT SALESYEAR, SALESMONTH, REVENUE,
+SUM(REVENUE)OVER(PARTITION BY SALESYEAR ORDER BY SALESMONTH ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS RUNNING_REVENUE
+FROM CFO 
+ORDER BY SALESYEAR, SALESMONTH
+
+--Management wants to compare each month's revenue with the previous month. Write a query to display year,
+-- month, current month revenue, previous month revenue, and month-over-month growth.
+WITH MANAGEMENT AS (
+SELECT YEAR(CONVERT(DATE, S.[Order Date], 105 )) AS SALESYEAR,
+MONTH(CONVERT(DATE, S.[Order Date], 105)) AS SALESMONTH,
+SUM(S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '')AS DECIMAL(10,2))) AS REVENUE
+FROM Sales  AS S 
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY YEAR(CONVERT(DATE, S.[Order Date], 105 )) ,
+MONTH(CONVERT(DATE, S.[Order Date], 105)) 
+)
+SELECT SALESYEAR, SALESMONTH, REVENUE,
+LAG(REVENUE)OVER(ORDER BY SALESYEAR, SALESMONTH) AS PRV_SALES,
+CAST(
+   (REVENUE - LAG(REVENUE)OVER(ORDER BY SALESYEAR, SALESMONTH))/
+   NULLIF(LAG(REVENUE)OVER(ORDER BY SALESYEAR, SALESMONTH), 0) * 100  AS DECIMAL(10,2)
+) AS MOM_GROWTH_PERC
+FROM MANAGEMENT 
+ORDER BY SALESYEAR, SALESMONTH
+
+--Write a query to find the highest-selling product color (by quantity) within each product category.
+WITH HIGHESTSELLINGPRODUCTCOLOUR AS (
+SELECT P.Category, P.Color, 
+SUM(S.Quantity) AS QTY
+FROM Sales  AS S 
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+GROUP BY P.Category, P.Color
+)
+SELECT Category, Color, QTY, 
+RN
+FROM ( SELECT Category, Color, QTY, 
+ROW_NUMBER()OVER(PARTITION BY Category ORDER BY QTY) AS RN 
+FROM HIGHESTSELLINGPRODUCTCOLOUR 
+) AS X
+WHERE RN = 1
+ORDER BY Category
+
+--Write a query to identify customers who have made purchases in more than one store country 
+--(e.g., customers who travel and shop internationally).
+SELECT C.Name, 
+COUNT(DISTINCT R.Country) AS NO_OF_STORE
+FROM Cust_join AS C 
+INNER JOIN Sales AS S 
+ON C.[CustomerKey] = S.[CustomerKey]
+INNER JOIN Stores AS R 
+ON S.StoreKey = R.StoreKey
+GROUP BY C.Name
+HAVING COUNT(DISTINCT R.Country) > 1
+ORDER BY NO_OF_STORE DESC
+
+--Marketing wants age-wise revenue insights. Write a query to calculate total revenue by customer 
+--age group (18-25, 26-35, 36-45, 46-60, 60+) at the time of purchase.
+WITH CUSTOMERAGE AS 
+(
+SELECT
+S.Quantity *
+CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '')AS DECIMAL(10,2)) AS REVENUE,
+
+DATEDIFF(YEAR,
+CONVERT(DATE, C.Birthday, 105),
+CONVERT(DATE, S.[Order Date], 105)
+)
+-
+ CASE
+WHEN DATEADD(YEAR,DATEDIFF(YEAR,
+CONVERT(DATE, C.Birthday, 105),
+CONVERT(DATE, S.[Order Date], 105)
+),
+CONVERT(DATE, C.Birthday, 105)
+) > CONVERT(DATE, S.[Order Date], 105)
+THEN 1
+ELSE 0
+END AS AGE
+
+FROM Sales AS S
+INNER JOIN Cust_Join AS C
+ON S.CustomerKey = C.CustomerKey
+INNER JOIN Products AS P
+ON S.ProductKey = P.ProductKey
+)
+
+SELECT
+CASE
+WHEN AGE BETWEEN 18 AND 25 THEN '18-25'
+WHEN AGE BETWEEN 26 AND 35 THEN '26-35'
+WHEN AGE BETWEEN 36 AND 45 THEN '36-45'
+WHEN AGE BETWEEN 46 AND 60 THEN '46-60'
+WHEN AGE >= 61 THEN '60+'
+END AS AGE_GROUP,
+
+SUM(REVENUE) AS TOTAL_REVENUE
+
+FROM CUSTOMERAGE
+
+WHERE AGE >= 18
+
+GROUP BY
+CASE
+WHEN AGE BETWEEN 18 AND 25 THEN '18-25'
+WHEN AGE BETWEEN 26 AND 35 THEN '26-35'
+WHEN AGE BETWEEN 36 AND 45 THEN '36-45'
+WHEN AGE BETWEEN 46 AND 60 THEN '46-60'
+WHEN AGE >= 61 THEN '60+'
+END
+ORDER BY AGE_GROUP
+
+--The CEO requires a single query to power an executive dashboard. Write a query to return total revenue (USD), 
+--total cost (USD), total profit (USD), profit percentage, total orders, total customers, total products sold, 
+--average order value, and total revenue in local currency.
+WITH SALESDATA AS (
+SELECT
+S.[Order Number], S.CustomerKey, S.Quantity,
+S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '')AS DECIMAL(18,2)) AS REVENUEUSD,
+S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Cost USD], '$', ''), ',', '')AS DECIMAL(18,2)) AS COSTUSD,
+S.Quantity * CAST(REPLACE(REPLACE(P.[Unit Price USD], '$', ''), ',', '')AS DECIMAL(18,2)) * E.Exchange AS REVENUELOCAL
+FROM Sales  AS S 
+INNER JOIN Products AS P 
+ON S.[ProductKey] = P.[ProductKey]
+INNER JOIN Exchange_Rates AS E 
+ON E.[Currency] = S.[Currency Code] AND E.[Date] =  S.[Order Date]
+) 
+SELECT 
+CAST(SUM(REVENUEUSD) AS DECIMAL(18,2)) AS TOTAL_REVENUE,
+CAST(SUM(COSTUSD) AS DECIMAL(18,2)) AS TOTAL_COST,
+CAST(SUM(REVENUEUSD)- SUM(COSTUSD) AS DECIMAL(18,2)) AS PROFIT,
+CAST((SUM(REVENUEUSD) - SUM(COSTUSD))/ NULLIF(SUM(REVENUEUSD), 0) * 100 AS DECIMAL(18,2)) AS PROFIT_PERC,
+COUNT(DISTINCT [Order Number]) AS TOTAL_ORDERS,
+COUNT(DISTINCT [CustomerKey]) AS TOTAL_CUSTOMER,
+SUM(Quantity) AS TOTAL_PRODUCT_SOLD,
+CAST(SUM(REVENUEUSD)/ NULLIF(COUNT(DISTINCT [Order Number]), 0) AS DECIMAL(18,2)) AS AVG_ORDER_VALUE,
+CAST(SUM(REVENUELOCAL) AS DECIMAL(18,2)) AS TOTAL_REVENUE_LOC
+FROM SALESDATA 
