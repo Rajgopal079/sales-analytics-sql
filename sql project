@@ -172,7 +172,7 @@ ON S.[ProductKey] = P.[ProductKey]
 GROUP BY P.Category, P.[Product Name] 
 )
 SELECT  Category, [Product Name], 
-TOTAL_SALES FROM (
+TOTAL_SALES, RN FROM (
     SELECT *, ROW_NUMBER()OVER(PARTITION BY Category ORDER BY TOTAL_SALES DESC) AS RN
  FROM Productrevenue 
 ) AS X 
